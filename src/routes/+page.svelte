@@ -1,18 +1,213 @@
 <script lang="ts">
-	import { signIn, signOut } from '@auth/sveltekit/client';
+	import { onDestroy, onMount } from 'svelte';
+	import {
+		MonitorSpeaker,
+		Pause,
+		Play,
+		SkipBack,
+		SkipForward,
+		Volume1,
+		Volume2,
+		VolumeX
+	} from 'lucide-svelte';
+	import { RangeSlider } from '@skeletonlabs/skeleton';
 	import { page } from '$app/stores';
+	import { formatDuration } from '$lib/formatDuration';
+
+	let player: Spotify.Player;
+	let trackName: string;
+	let trackArtists: string[];
+	let trackCover: string;
+	let trackDuration: number;
+	let trackPosition: number;
+
+	// data for design iterations since player resets on page reload
+	// let trackName: string = 'Kill Bill';
+	// let trackArtists: string[] = ['SZA'];
+	// let trackCover: string = 'https://i.scdn.co/image/ab67616d00001e0270dbc9f47669d120ad874ec1';
+	// let trackDuration: number = 123300;
+	// let trackPosition: number = 123300 / 2;
+
+	let volume = 0.5;
+	let isPlaying = false;
+	let playingTrack = false;
+
+	const positionInterval = setInterval(() => {
+		if (!player) return;
+		player.getCurrentState().then((state) => {
+			if (!state) return;
+			trackPosition = state.position;
+		});
+	}, 1000);
+
+	function loadSpotifyPlayer(): Promise<any> {
+		return new Promise<void>((resolve, reject) => {
+			const scriptTag = document.getElementById('spotify-player');
+
+			if (!scriptTag) {
+				const script = document.createElement('script');
+
+				script.id = 'spotify-player';
+				script.type = 'text/javascript';
+				script.async = false;
+				script.defer = true;
+				script.src = 'https://sdk.scdn.co/spotify-player.js';
+				script.onload = () => resolve();
+				script.onerror = (error: any) => reject(new Error(`loadScript: ${error.message}`));
+
+				document.head.appendChild(script);
+			} else {
+				resolve();
+			}
+		});
+	}
+	function initializeSpotifyPlayer() {
+		player = new window.Spotify.Player({
+			name: 'Lyric Thing',
+			volume,
+			getOAuthToken: (cb) => {
+				if (!$page.data.session?.user?.accessToken) return;
+				cb($page.data.session.user.accessToken);
+			}
+		});
+
+		player.addListener('player_state_changed', handleStateChange);
+
+		player.connect();
+	}
+	function handleStateChange(state: Spotify.PlaybackState) {
+		const currentTrack = state.track_window.current_track;
+		trackName = currentTrack.name;
+		trackArtists = currentTrack.artists.map((artist) => artist.name);
+		trackCover = currentTrack.album.images[0].url;
+		trackDuration = currentTrack.duration_ms;
+		trackPosition = state.position;
+		isPlaying = !state.paused;
+		playingTrack = !!state.track_window.current_track;
+	}
+	function handleVolumeChange(e: Event) {
+		const target = e.target as HTMLInputElement;
+		player.setVolume(target.valueAsNumber);
+	}
+	function handleSeek(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const seekTo = trackDuration * target.valueAsNumber;
+		player.seek(seekTo);
+	}
+
+	onMount(async () => {
+		if (!window.onSpotifyWebPlaybackSDKReady) {
+			window.onSpotifyWebPlaybackSDKReady = initializeSpotifyPlayer;
+		} else {
+			initializeSpotifyPlayer();
+		}
+
+		await loadSpotifyPlayer();
+	});
+
+	onDestroy(() => {
+		if (player) player.disconnect();
+		clearInterval(positionInterval);
+	});
 </script>
 
-{#if $page.data.session}
-	<main class="flex flex-col h-full justify-center items-center gap-2">
-		<h1 class="text-4xl">Hey {$page.data.session.user?.name}!</h1>
-		<button class="btn variant-filled-error" on:click={() => signOut()}>Sign out</button>
-	</main>
-{:else}
-	<main class="flex flex-col h-full justify-center items-center gap-2">
-		<h1 class="text-4xl">Hey stranger!</h1>
-		<button class="btn variant-filled-success" on:click={() => signIn('spotify')}
-			>Sign in with Spotify</button
-		>
-	</main>
-{/if}
+<main class="px-4 xl:px-0 h-full flex justify-center items-center">
+	{#if playingTrack && $page.data.session}
+		<div class="flex flex-col gap-4 items-center max-w-6xl w-full">
+			<div class="flex md:flex-row flex-col gap-4 items-center md:mr-auto">
+				<div>
+					<img src={trackCover} alt={`track cover for ${trackName}`} />
+				</div>
+				<div class="text-center md:text-left">
+					<p class="text-3xl md:text-5xl font-bold line-clamp-2">{trackName}</p>
+					{#each trackArtists as artist, i}
+						<p
+							class="text-xl md:text-3xl text-surface-400 whitespace-pre inline-block align-middle line-clamp-2"
+						>
+							{i === trackArtists.length - 1 ? artist : artist + ','}
+						</p>
+					{/each}
+				</div>
+			</div>
+			<!-- children use absolute positioning for now while other implementations are being added -->
+			<div class="flex relative items-center w-full justify-center h-8">
+				<div class="flex gap-4 items-center absolute left-1/2 -translate-x-1/2">
+					<button
+						class="btn btn-icon variant-filled-primary"
+						on:click={() => player.previousTrack()}
+					>
+						<SkipBack size={24} />
+					</button>
+					<button class="btn btn-icon variant-filled-primary" on:click={() => player.togglePlay()}>
+						{#if !isPlaying}
+							<Play size={24} />
+						{:else}
+							<Pause size={24} />
+						{/if}
+					</button>
+					<button class="btn btn-icon variant-filled-primary" on:click={() => player.nextTrack()}>
+						<SkipForward size={24} />
+					</button>
+				</div>
+				<div class="gap-1 items-center absolute right-0 hidden md:flex">
+					<button
+						class="btn btn-icon"
+						on:click={() => {
+							if (volume === 0) {
+								player.setVolume(0.5);
+								volume = 0.5;
+							} else {
+								player.setVolume(0);
+								volume = 0;
+							}
+						}}
+					>
+						{#if volume > 0 && volume <= 0.5}
+							<Volume1 size={24} />
+						{:else if volume > 0.5}
+							<Volume2 size={24} />
+						{:else}
+							<VolumeX size={24} />
+						{/if}
+					</button>
+					<RangeSlider
+						name="player-volume"
+						on:change={handleVolumeChange}
+						bind:value={volume}
+						max={1}
+						step={0.001}
+					/>
+				</div>
+			</div>
+			<div class="grow w-full">
+				<RangeSlider
+					name="player-timeline"
+					max={1}
+					value={trackPosition / trackDuration}
+					on:change={handleSeek}
+					step={0.001}
+				/>
+				<div class="flex justify-between">
+					<p class="text-sm text-surface-400">{formatDuration(0)}</p>
+					<p class="text-sm text-surface-400">{formatDuration(trackDuration)}</p>
+				</div>
+			</div>
+		</div>
+	{:else}
+		<div>
+			<h1 class="text-5xl mb-2">Nothing Playing</h1>
+			<div class="text-3xl text-surface-400">
+				<p>Get the party going!</p>
+				<p>- Open Spotify</p>
+				<p>- Play a song</p>
+				<div class="flex items-center gap-2">
+					<p>- Click the</p>
+					<MonitorSpeaker />
+					<p>button</p>
+				</div>
+				<p>- Click on "Lyric Thing" in the popup menu</p>
+				<p>- Enjoy!</p>
+			</div>
+		</div>
+	{/if}
+</main>

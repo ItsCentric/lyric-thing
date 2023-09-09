@@ -7,3 +7,11 @@ declare namespace App {
 	// interface Error {}
 	// interface Platform {}
 }
+declare global {
+	interface Window {
+		onSpotifyWebPlaybackSDKReady: () => void;
+		Spotify: {
+			Player: new (options: Spotify.PlayerInit) => Spotify.Player;
+		};
+	}
+}
