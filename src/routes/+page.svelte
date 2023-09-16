@@ -21,11 +21,13 @@
 	import { trackQueue } from '$lib/stores';
 	import constructSpotifyUrl from '$lib/constructSpotifyUrl';
 	import formatArtistList from '$lib/formatArtistList';
+	import type { GetLyricsRes } from './lyrics/+server';
+	import Lyrics from '$lib/Lyrics.svelte';
 
 	let player: Spotify.Player;
 
 	let trackName: string;
-	let uris: { track: string; artists: string[] };
+	let uris: { track: string; artists: string[] } = { track: '', artists: [] };
 	let trackArtists: string[];
 	let trackCover: string;
 	let trackDuration: number;
@@ -33,10 +35,21 @@
 
 	// data for design iterations since player resets on page reload
 	// let trackName: string = 'Kill Bill';
+	// let uris: { track: string; artists: string[] } = { track: '', artists: ['lalalala'] };
 	// let trackArtists: string[] = ['SZA'];
 	// let trackCover: string = 'https://i.scdn.co/image/ab67616d00001e0270dbc9f47669d120ad874ec1';
 	// let trackDuration: number = 123300;
 	// let trackPosition: number = 123300 / 2;
+	// let lyricsRes = new Response('', { status: 200 });
+	// console.log(lyricsRes.blob());
+	// let lyrics: GetLyricsRes = {
+	// 	uri: '',
+	// 	transcriptions: [
+	// 		{ id: 1, start: 59, end: 60, text: 'lalalala' },
+	// 		{ id: 2, start: 61, end: 62, text: 'lalalalababababab' },
+	// 		{ id: 3, start: 63, end: 64, text: 'rararra' }
+	// 	]
+	// };
 
 	let volume = 0.5;
 	let isPlaying = false;
@@ -167,10 +180,10 @@
 	});
 </script>
 
-<main class="px-4 xl:px-0 h-full flex justify-center items-center">
+<main class="px-4 xl:px-64 h-full flex justify-center items-center">
 	{#if playingTrack && $page.data.session}
-		<div class="flex flex-col gap-4 items-center max-w-6xl w-full">
-			<div class="flex md:flex-row flex-col gap-4 items-center md:mr-auto">
+		<div class="grid grid-cols-2 gap-4 items-center w-full">
+			<div class="flex md:flex-row flex-col gap-4 items-center md:mr-auto col-span-2 md:col-span-1">
 				<div>
 					<img
 						src={trackCover}
@@ -193,86 +206,95 @@
 					)}
 				</div>
 			</div>
-			<div class="flex items-center w-full justify-between h-8 relative">
-				<div>
-					<button
-						class="btn btn-icon variant-ghost btn-icon-sm"
-						on:click={() => modalStore.trigger(trackQueueModal)}
-					>
-						<ListMusic size={16} />
-					</button>
+			<Lyrics currentTrackUri={uris.track} {trackPosition} />
+			<div class="col-span-2 flex flex-col gap-2">
+				<div class="flex items-center w-full justify-between relative">
+					<div>
+						<button
+							class="btn btn-icon variant-ghost btn-icon-sm"
+							on:click={() => modalStore.trigger(trackQueueModal)}
+						>
+							<ListMusic size={16} />
+						</button>
+					</div>
+					<div class="flex gap-4 items-center absolute left-1/2 -translate-x-1/2">
+						<button class="btn btn-icon btn-icon-sm variant-ghost" on:click={handleShuffle}>
+							<Shuffle size={16} class={shuffle ? 'text-secondary-500' : ''} />
+						</button>
+						<button
+							class="btn btn-icon variant-filled-primary"
+							on:click={() => player.previousTrack()}
+						>
+							<SkipBack size={24} />
+						</button>
+						<button
+							class="btn btn-icon variant-filled-primary"
+							on:click={() => player.togglePlay()}
+						>
+							{#if !isPlaying}
+								<Play size={24} />
+							{:else}
+								<Pause size={24} />
+							{/if}
+						</button>
+						<button class="btn btn-icon variant-filled-primary" on:click={() => player.nextTrack()}>
+							<SkipForward size={24} />
+						</button>
+						<button class="btn btn-icon btn-icon-sm variant-ghost" on:click={handleRepeat}>
+							{#if repeat === 0 || repeat === 1}
+								<Repeat size={16} class={repeat === 0 ? '' : 'text-secondary-500'} />
+							{:else}
+								<Repeat1 size={16} class="text-secondary-500" />
+							{/if}
+						</button>
+					</div>
+					<div class="gap-1 items-center hidden md:flex">
+						<button
+							class="btn btn-icon"
+							on:click={() => {
+								if (volume === 0) {
+									player.setVolume(0.5);
+									volume = 0.5;
+								} else {
+									player.setVolume(0);
+									volume = 0;
+								}
+							}}
+						>
+							{#if volume > 0 && volume <= 0.5}
+								<Volume1 size={24} />
+							{:else if volume > 0.5}
+								<Volume2 size={24} />
+							{:else}
+								<VolumeX size={24} />
+							{/if}
+						</button>
+						<RangeSlider
+							name="player-volume"
+							on:change={handleVolumeChange}
+							bind:value={volume}
+							max={1}
+							step={0.001}
+						/>
+					</div>
 				</div>
-				<div class="flex gap-4 items-center absolute left-1/2 -translate-x-1/2">
-					<button class="btn btn-icon btn-icon-sm variant-ghost" on:click={handleShuffle}>
-						<Shuffle size={16} class={shuffle ? 'text-secondary-500' : ''} />
-					</button>
-					<button
-						class="btn btn-icon variant-filled-primary"
-						on:click={() => player.previousTrack()}
-					>
-						<SkipBack size={24} />
-					</button>
-					<button class="btn btn-icon variant-filled-primary" on:click={() => player.togglePlay()}>
-						{#if !isPlaying}
-							<Play size={24} />
-						{:else}
-							<Pause size={24} />
-						{/if}
-					</button>
-					<button class="btn btn-icon variant-filled-primary" on:click={() => player.nextTrack()}>
-						<SkipForward size={24} />
-					</button>
-					<button class="btn btn-icon btn-icon-sm variant-ghost" on:click={handleRepeat}>
-						{#if repeat === 0 || repeat === 1}
-							<Repeat size={16} class={repeat === 0 ? '' : 'text-secondary-500'} />
-						{:else}
-							<Repeat1 size={16} class="text-secondary-500" />
-						{/if}
-					</button>
-				</div>
-				<div class="gap-1 items-center hidden md:flex">
-					<button
-						class="btn btn-icon"
-						on:click={() => {
-							if (volume === 0) {
-								player.setVolume(0.5);
-								volume = 0.5;
-							} else {
-								player.setVolume(0);
-								volume = 0;
-							}
-						}}
-					>
-						{#if volume > 0 && volume <= 0.5}
-							<Volume1 size={24} />
-						{:else if volume > 0.5}
-							<Volume2 size={24} />
-						{:else}
-							<VolumeX size={24} />
-						{/if}
-					</button>
+				<div class="grow w-full">
 					<RangeSlider
-						name="player-volume"
-						on:change={handleVolumeChange}
-						bind:value={volume}
+						name="player-timeline"
 						max={1}
+						value={trackPosition / trackDuration}
+						on:change={handleSeek}
 						step={0.001}
 					/>
+					<div class="flex justify-between">
+						<p class="text-sm text-surface-400">{formatDuration(trackPosition)}</p>
+						<p class="text-sm text-surface-400">{formatDuration(trackDuration)}</p>
+					</div>
 				</div>
 			</div>
-			<div class="grow w-full">
-				<RangeSlider
-					name="player-timeline"
-					max={1}
-					value={trackPosition / trackDuration}
-					on:change={handleSeek}
-					step={0.001}
-				/>
-				<div class="flex justify-between">
-					<p class="text-sm text-surface-400">{formatDuration(trackPosition)}</p>
-					<p class="text-sm text-surface-400">{formatDuration(trackDuration)}</p>
-				</div>
-			</div>
+			<span class="md:hidden inline col-span-2 pb-4">
+				<Lyrics currentTrackUri={uris.track} {trackPosition} />
+			</span>
 		</div>
 	{:else}
 		<div>
