@@ -2,6 +2,7 @@ import { json, error, type RequestHandler } from '@sveltejs/kit';
 import PocketBase, { ClientResponseError } from 'pocketbase';
 import { downloadAsAudioInMemory, searchForSong } from '$lib/youtubeHelpers';
 import { generateTranscribedLyrics } from '$lib/openaiHelpers';
+import { getYoutubeURL } from '$lib/songlinkHelpers';
 
 const pb = new PocketBase('http://127.0.0.1:8090');
 
@@ -29,8 +30,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		if (pbError.status === 404) {
 			try {
 				if (!session?.user?.accessToken) throw error(401, 'Not logged in');
-				const searchRes = await searchForSong(uri, session.user.accessToken);
-				const mp3Buffer = await downloadAsAudioInMemory(searchRes.url);
+				const res =
+					(await getYoutubeURL(uri)) ?? (await searchForSong(uri, session.user.accessToken));
+				const mp3Buffer = await downloadAsAudioInMemory(typeof res === 'string' ? res : res.url);
 				const lyrics = await generateTranscribedLyrics(uri, mp3Buffer, pb);
 
 				return json(lyrics);
