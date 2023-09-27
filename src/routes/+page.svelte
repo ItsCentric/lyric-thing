@@ -30,6 +30,8 @@
 	import Lyrics from '$lib/Lyrics.svelte';
 
 	let player: Spotify.Player;
+	let isLargeScreen: boolean;
+	if (typeof window !== 'undefined') isLargeScreen = window.screen.width >= 768;
 
 	let trackName: string;
 	let uris: { track: string; artists: string[] } = { track: '', artists: [] };
@@ -221,7 +223,9 @@
 					)}
 				</div>
 			</div>
-			<Lyrics currentTrackUri={uris.track} {trackPosition} />
+			{#if isLargeScreen}
+				<Lyrics currentTrackUri={uris.track} {trackPosition} {trackDuration} />
+			{/if}
 			<div class="col-span-2 flex flex-col gap-2">
 				<div class="flex items-center w-full justify-between relative">
 					<div>
@@ -307,9 +311,11 @@
 					</div>
 				</div>
 			</div>
-			<span class="md:hidden inline col-span-2 pb-4">
-				<Lyrics currentTrackUri={uris.track} {trackPosition} />
-			</span>
+			{#if !isLargeScreen}
+				<span class="inline col-span-2 pb-4">
+					<Lyrics currentTrackUri={uris.track} {trackPosition} {trackDuration} />
+				</span>
+			{/if}
 		</div>
 	{:else}
 		<div>

@@ -1,7 +1,7 @@
 import { OPENAI_API_KEY } from '$env/static/private';
 import OpenAI, { toFile } from 'openai';
 import type { ClientResponseError } from 'pocketbase';
-import type PocketBase from 'pocketbase';
+import { pb } from './pocketbase';
 
 const openaiClient = new OpenAI({
 	apiKey: OPENAI_API_KEY
@@ -24,7 +24,8 @@ type VerboseJsonResponse = {
 export async function generateTranscribedLyrics(
 	uri: string,
 	mp3Buffer: Buffer,
-	pocketbaseClient: PocketBase
+	requestedBy: string,
+	neededBalance: number
 ) {
 	const whisperRes = (await openaiClient.audio.transcriptions.create({
 		file: await toFile(mp3Buffer, 'transcription.mp3', { type: 'audio/mp3' }),
@@ -42,7 +43,14 @@ export async function generateTranscribedLyrics(
 	});
 
 	try {
-		await pocketbaseClient.collection('lyrics').create({ uri, transcriptions: mappedSegments });
+		const requestedByUser = await pb
+			.collection('users')
+			.getFirstListItem(`spotifyId = '${requestedBy}'`);
+		await pb.collection('users').update(requestedByUser.id, {
+			spotifyId: requestedBy,
+			'balance-': neededBalance
+		});
+		await pb.collection('lyrics').create({ uri, transcriptions: mappedSegments });
 	} catch (error) {
 		const pbError = error as ClientResponseError;
 		console.log(pbError.status, pbError.message);
