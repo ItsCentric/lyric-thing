@@ -14,7 +14,12 @@
 		Volume2,
 		VolumeX
 	} from 'lucide-svelte';
-	import { RangeSlider, getModalStore, type ModalSettings } from '@skeletonlabs/skeleton';
+	import {
+		RangeSlider,
+		getModalStore,
+		type ModalSettings,
+		getToastStore
+	} from '@skeletonlabs/skeleton';
 	import { page } from '$app/stores';
 	import { formatDuration } from '$lib/formatDuration';
 	import TrackQueue from '$lib/TrackQueue.svelte';
@@ -25,6 +30,8 @@
 	import Lyrics from '$lib/Lyrics.svelte';
 
 	let player: Spotify.Player;
+	let isLargeScreen: boolean;
+	if (typeof window !== 'undefined') isLargeScreen = window.screen.width >= 768;
 
 	let trackName: string;
 	let uris: { track: string; artists: string[] } = { track: '', artists: [] };
@@ -74,6 +81,7 @@
 		}
 	};
 	const modalStore = getModalStore();
+	const toastStore = getToastStore();
 
 	function loadSpotifyPlayer(): Promise<any> {
 		return new Promise<void>((resolve, reject) => {
@@ -170,6 +178,15 @@
 		} else {
 			initializeSpotifyPlayer();
 		}
+		const query = new URLSearchParams(window.location.search);
+		if (query.get('checkoutSuccess') === 'true') {
+			toastStore.trigger({ message: 'Checkout successful!', background: 'variant-filled-success' });
+			window.history.replaceState({}, '', '/');
+		}
+		if (query.get('checkoutSuccess') === 'false') {
+			toastStore.trigger({ message: 'Checkout canceled.', background: 'variant-filled-error' });
+			window.history.replaceState({}, '', '/');
+		}
 
 		await loadSpotifyPlayer();
 	});
@@ -206,7 +223,9 @@
 					)}
 				</div>
 			</div>
-			<Lyrics currentTrackUri={uris.track} {trackPosition} />
+			{#if isLargeScreen}
+				<Lyrics currentTrackUri={uris.track} {trackPosition} {trackDuration} />
+			{/if}
 			<div class="col-span-2 flex flex-col gap-2">
 				<div class="flex items-center w-full justify-between relative">
 					<div>
@@ -292,9 +311,11 @@
 					</div>
 				</div>
 			</div>
-			<span class="md:hidden inline col-span-2 pb-4">
-				<Lyrics currentTrackUri={uris.track} {trackPosition} />
-			</span>
+			{#if !isLargeScreen}
+				<span class="inline col-span-2 pb-4">
+					<Lyrics currentTrackUri={uris.track} {trackPosition} {trackDuration} />
+				</span>
+			{/if}
 		</div>
 	{:else}
 		<div>

@@ -3,20 +3,25 @@
 	import type { GetLyricsRes } from '../routes/lyrics/+server';
 	import { flip } from 'svelte/animate';
 	import { getLyrics, getThreeNearestActiveLyrics } from './lyricHelpers';
+	import { getCheckoutLink } from './stripeHelpers';
+	import { debounce } from 'lodash';
 
 	export let currentTrackUri: string;
 	export let trackPosition: number;
+	export let trackDuration: number;
 	const flyInParameters = { y: 50, duration: 300 };
 	const flyOutParameters = { y: -50, duration: 300 };
 	let nearestThreeLyrics: Awaited<ReturnType<typeof getThreeNearestActiveLyrics>> = [];
-	let lyricsTrackUri: string;
 	let lyricsRes: GetLyricsRes = { response: new Response(), uri: '', transcriptions: [] };
+	async function rawFetchLyrics() {
+		getLyrics(currentTrackUri, trackDuration)?.then((res) => (lyricsRes = res));
+	}
+	const fetchLyrics = debounce(rawFetchLyrics, 1500, { leading: false, trailing: true });
 
-	$: if (currentTrackUri !== lyricsTrackUri) {
-		lyricsTrackUri = currentTrackUri;
+	$: if (currentTrackUri) {
 		nearestThreeLyrics = [];
 		lyricsRes = { response: new Response(), uri: '', transcriptions: [] };
-		getLyrics(currentTrackUri).then((res) => (lyricsRes = res));
+		fetchLyrics();
 	}
 	$: if (lyricsRes)
 		getThreeNearestActiveLyrics(trackPosition, lyricsRes).then((res) => (nearestThreeLyrics = res));
@@ -29,12 +34,27 @@
 		</p>
 	{:else if !lyricsRes.response.bodyUsed && !lyricsRes.response.ok}
 		{@const { response } = lyricsRes}
-		<p in:fly={flyInParameters} out:fly={flyOutParameters} class="text-error-500">
-			Something went wrong
-		</p>
-		<p class="text-base text-error-500">
-			{response.status}: {response.statusText}
-		</p>
+		{#if response.status === 402}
+			<p in:fly={flyInParameters} out:fly={flyOutParameters} class="text-error-500">
+				Insufficent Balance
+			</p>
+			<p in:fly={flyInParameters} out:fly={flyOutParameters} class="text-base text-error-500">
+				Consider <span
+					class="text-primary-500 cursor-pointer hover:text-primary-600 transition-colors duration-200"
+					on:click={async () => await getCheckoutLink()}
+					role="button"
+					tabindex={0}
+					on:keypress={async () => await getCheckoutLink()}>adding more to your balance</span
+				> to generate new lyrics.
+			</p>
+		{:else}
+			<p in:fly={flyInParameters} out:fly={flyOutParameters} class="text-error-500">
+				Something went wrong
+			</p>
+			<p class="text-base text-error-500">
+				{response.status}: {response.statusText}
+			</p>
+		{/if}
 	{:else}
 		{#each nearestThreeLyrics as lyric, i (lyric.id)}
 			<span animate:flip={{ duration: 300 }} in:fly={flyInParameters} out:fly={flyOutParameters}>

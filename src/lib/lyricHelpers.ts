@@ -1,7 +1,7 @@
 import type { GetLyricsRes } from '../routes/lyrics/+server';
 
-export async function getLyrics(currentTrackUri: string) {
-	const lyricsRes = await fetch(`/lyrics?uri=${currentTrackUri}`);
+export async function getLyrics(currentTrackUri: string, duration: number) {
+	const lyricsRes = await fetch(`/lyrics?uri=${currentTrackUri}&duration=${duration}`);
 	if (lyricsRes.ok) {
 		const lyrics = (await lyricsRes.json()) as {
 			uri: GetLyricsRes['uri'];

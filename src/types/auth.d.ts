@@ -4,6 +4,7 @@ declare module '@auth/sveltekit/node_modules/@auth/core/types' {
 	interface Session {
 		user?: {
 			accessToken?: string;
+			providerAccountId?: string;
 		} & DefaultSession['user'];
 	}
 }
