@@ -4,6 +4,7 @@
 	import { flip } from 'svelte/animate';
 	import { getLyrics, getThreeNearestActiveLyrics } from './lyricHelpers';
 	import { getCheckoutLink } from './stripeHelpers';
+	import { debounce } from 'lodash';
 
 	export let currentTrackUri: string;
 	export let trackPosition: number;
@@ -12,13 +13,16 @@
 	const flyOutParameters = { y: -50, duration: 300 };
 	let nearestThreeLyrics: Awaited<ReturnType<typeof getThreeNearestActiveLyrics>> = [];
 	let lyricsRes: GetLyricsRes = { response: new Response(), uri: '', transcriptions: [] };
-	async function fetchLyrics() {
+	async function rawFetchLyrics() {
+		getLyrics(currentTrackUri, trackDuration)?.then((res) => (lyricsRes = res));
+	}
+	const fetchLyrics = debounce(rawFetchLyrics, 1500, { leading: false, trailing: true });
+
+	$: if (currentTrackUri) {
 		nearestThreeLyrics = [];
 		lyricsRes = { response: new Response(), uri: '', transcriptions: [] };
-		getLyrics(currentTrackUri, trackDuration).then((res) => (lyricsRes = res));
+		fetchLyrics();
 	}
-
-	$: if (currentTrackUri) fetchLyrics();
 	$: if (lyricsRes)
 		getThreeNearestActiveLyrics(trackPosition, lyricsRes).then((res) => (nearestThreeLyrics = res));
 </script>
