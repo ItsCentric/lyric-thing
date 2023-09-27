@@ -14,7 +14,12 @@
 		Volume2,
 		VolumeX
 	} from 'lucide-svelte';
-	import { RangeSlider, getModalStore, type ModalSettings } from '@skeletonlabs/skeleton';
+	import {
+		RangeSlider,
+		getModalStore,
+		type ModalSettings,
+		getToastStore
+	} from '@skeletonlabs/skeleton';
 	import { page } from '$app/stores';
 	import { formatDuration } from '$lib/formatDuration';
 	import TrackQueue from '$lib/TrackQueue.svelte';
@@ -74,6 +79,7 @@
 		}
 	};
 	const modalStore = getModalStore();
+	const toastStore = getToastStore();
 
 	function loadSpotifyPlayer(): Promise<any> {
 		return new Promise<void>((resolve, reject) => {
@@ -169,6 +175,15 @@
 			window.onSpotifyWebPlaybackSDKReady = initializeSpotifyPlayer;
 		} else {
 			initializeSpotifyPlayer();
+		}
+		const query = new URLSearchParams(window.location.search);
+		if (query.get('checkoutSuccess') === 'true') {
+			toastStore.trigger({ message: 'Checkout successful!', background: 'variant-filled-success' });
+			window.history.replaceState({}, '', '/');
+		}
+		if (query.get('checkoutSuccess') === 'false') {
+			toastStore.trigger({ message: 'Checkout canceled.', background: 'variant-filled-error' });
+			window.history.replaceState({}, '', '/');
 		}
 
 		await loadSpotifyPlayer();
