@@ -9,9 +9,11 @@
 	const { session } = $page.data;
 	let userRecord: RecordModel | null;
 	$: balance = userRecord?.balance ?? 0;
-	pb.collection('users')
-		.getFirstListItem(`spotifyId = '${session?.user?.providerAccountId}'` ?? '')
-		.then((record) => (userRecord = record));
+	$: if (session?.user) {
+		pb.collection('users')
+			.getFirstListItem(`spotifyId = '${session.user.providerAccountId}'`)
+			.then((record) => (userRecord = record));
+	}
 	$: if (userRecord)
 		pb.collection('users').subscribe(userRecord.id, (res) => (balance = res.record.balance));
 
@@ -21,7 +23,7 @@
 </script>
 
 <main class="flex gap-2 items-center">
-	{#if session && balance}
+	{#if session && balance != null}
 		<p class="font-semibold text-xl">
 			Current Balance: ${balance.toFixed(2)}
 		</p>

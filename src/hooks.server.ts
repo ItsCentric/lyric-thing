@@ -43,6 +43,8 @@ export const handle = SvelteKitAuth({
 					if (pbError.status === 404) {
 						await pb.collection('users').create({
 							spotifyId: account.providerAccountId,
+							password: 'abcdefghijklmnop',
+							passwordConfirm: 'abcdefghijklmnop',
 							email: profile.email
 						});
 					}
